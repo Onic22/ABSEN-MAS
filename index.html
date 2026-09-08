@@ -1,83 +1,143 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Scan QR / Barcode - SILAK ABSEN</title>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <style>
-    *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#111;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}.box{width:100%;max-width:520px;background:#fff;color:#111;border-radius:18px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)}.head{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;padding:24px;text-align:center}.head h1{margin:0 0 6px;font-size:24px}.head p{margin:0;opacity:.9}.body{padding:20px}.status{text-align:center;padding:10px;border-radius:10px;background:#f1f5f9;color:#475569;font-size:14px;margin-bottom:14px}.status.ok{background:#dcfce7;color:#166534}.status.err{background:#fee2e2;color:#991b1b}#reader{width:100%;min-height:300px;background:#000;border-radius:14px;overflow:hidden}button{width:100%;margin-top:14px;padding:13px;border:0;border-radius:10px;background:#e2e8f0;font-size:15px;cursor:pointer}.hint{text-align:center;color:#64748b;font-size:12px;margin-top:12px;line-height:1.5}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Scan QR / Barcode - SILAK ABSEN</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#111;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:12px}.box{width:100%;max-width:520px;background:#fff;color:#111;border-radius:18px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)}.head{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;padding:24px;text-align:center}.head h1{margin:0 0 6px;font-size:24px}.head p{margin:0;opacity:.9}.body{padding:18px}.status{text-align:center;padding:11px;border-radius:10px;background:#f1f5f9;color:#475569;font-size:14px;margin-bottom:12px;line-height:1.4}.status.ok{background:#dcfce7;color:#166534}.status.err{background:#fee2e2;color:#991b1b}.status.warn{background:#fef3c7;color:#92400e}#reader{width:100%;min-height:300px;background:#000;border-radius:14px;overflow:hidden}#reader video{width:100%!important;height:auto!important;object-fit:cover}button{width:100%;margin-top:12px;padding:13px;border:0;border-radius:10px;background:#e2e8f0;font-size:15px;cursor:pointer}button.primary{background:#3b82f6;color:white}button:disabled{opacity:.55}.hint{text-align:center;color:#64748b;font-size:12px;margin-top:11px;line-height:1.5}.camera-select{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;margin-top:10px;font-size:14px;background:#fff}
+</style>
 </head>
 <body>
 <div class="box">
-  <div class="head"><h1>SILAK ABSEN</h1><p>Scan QR / Barcode</p></div>
-  <div class="body">
-    <div id="status" class="status">Meminta izin kamera...</div>
-    <div id="reader"></div>
-    <button onclick="location.href='about:blank'">Tutup</button>
-    <div class="hint">Gunakan kamera belakang dan arahkan QR/barcode ke dalam kotak.</div>
-  </div>
-</div>
+<div class="head"><h1>SILAK ABSEN</h1><p>Scan QR / Barcode</p></div>
+<div class="body">
+<div id="status" class="status">Menyiapkan kamera...</div>
+<div id="reader"></div>
+<select id="cameraSelect" class="camera-select" style="display:none"></select>
+<button id="startBtn" class="primary" onclick="startCamera()" style="display:none">Aktifkan Kamera</button>
+<button onclick="closeScanner()">Tutup</button>
+<div class="hint">Kamera belakang dipilih otomatis. Arahkan QR/barcode ke dalam kotak.</div>
+</div></div>
 <script>
 (function(){
-  var params=new URLSearchParams(location.search);
-  var token=params.get('token')||'';
-  var status=document.getElementById('status');
-  var scanner=null;
-  var done=false;
-  var formats=[];
-  if(window.Html5QrcodeSupportedFormats){
-    formats=[
-      Html5QrcodeSupportedFormats.QR_CODE,
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.CODE_93,
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.UPC_A,
-      Html5QrcodeSupportedFormats.UPC_E,
-      Html5QrcodeSupportedFormats.ITF
-    ];
-  }
-  function setStatus(t,cls){status.textContent=t;status.className='status '+(cls||'');}
-  function send(code){
-    if(done)return;
-    done=true;
-    setStatus('Kode terbaca: '+code,'ok');
-    if(window.opener && !window.opener.closed){
-      window.opener.postMessage({type:'SILAK_ABSEN_SCAN',code:String(code),token:token},'*');
-      setTimeout(function(){window.close();},500);
-    }else{
-      var ret=params.get('return');
-      if(ret){
-        var sep=ret.indexOf('?')>=0?'&':'?';
-        location.href=ret+sep+'scan='+encodeURIComponent(code);
-      }
-    }
-  }
-  function start(){
-    try{
-      scanner=new Html5Qrcode('reader');
-      var cfg={fps:12,qrbox:{width:260,height:180},aspectRatio:1.777778};
-      if(formats.length)cfg.formatsToSupport=formats;
-      scanner.start({facingMode:{exact:'environment'}},cfg,function(decoded){send(decoded);},function(){}).then(function(){
-        setStatus('Kamera aktif. Arahkan kode ke kotak.','ok');
-      }).catch(function(err){
-        // Fallback jika kamera belakang exact tidak tersedia.
-        scanner.clear().then(function(){
-          scanner=new Html5Qrcode('reader');
-          scanner.start({facingMode:'environment'},cfg,function(decoded){send(decoded);},function(){}).then(function(){
-            setStatus('Kamera aktif. Arahkan kode ke kotak.','ok');
-          }).catch(function(e){
-            setStatus('Kamera tidak dapat dibuka. Izinkan kamera di browser lalu muat ulang halaman. '+(e&&e.message?'('+e.message+')':''),'err');
-          });
-        });
-      });
-    }catch(e){setStatus('Scanner gagal dimuat: '+e.message,'err');}
-  }
-  window.addEventListener('beforeunload',function(){if(scanner){try{scanner.stop();}catch(e){}}});
-  start();
+'use strict';
+const params=new URLSearchParams(location.search);
+const token=params.get('token')||'';
+const statusEl=document.getElementById('status');
+const selectEl=document.getElementById('cameraSelect');
+const startBtn=document.getElementById('startBtn');
+let scanner=null, activeCameraId=null, done=false, permissionStream=null;
+
+const formats=window.Html5QrcodeSupportedFormats ? [
+ Html5QrcodeSupportedFormats.QR_CODE,
+ Html5QrcodeSupportedFormats.CODE_128,
+ Html5QrcodeSupportedFormats.CODE_39,
+ Html5QrcodeSupportedFormats.CODE_93,
+ Html5QrcodeSupportedFormats.EAN_13,
+ Html5QrcodeSupportedFormats.EAN_8,
+ Html5QrcodeSupportedFormats.UPC_A,
+ Html5QrcodeSupportedFormats.UPC_E,
+ Html5QrcodeSupportedFormats.ITF
+] : undefined;
+
+function setStatus(text,cls){statusEl.textContent=text;statusEl.className='status '+(cls||'');}
+function errorText(e){
+ const n=e&&e.name?e.name:'';
+ const m=e&&e.message?e.message:String(e||'');
+ if(n==='NotAllowedError'||n==='PermissionDeniedError') return 'Izin kamera ditolak. Klik ikon kamera di kiri alamat situs, pilih Izinkan, lalu klik Aktifkan Kamera.';
+ if(n==='NotFoundError'||n==='DevicesNotFoundError') return 'Kamera tidak ditemukan. Pastikan kamera terpasang dan tidak dipakai aplikasi lain.';
+ if(n==='NotReadableError'||n==='TrackStartError') return 'Kamera sedang dipakai aplikasi/tab lain. Tutup aplikasi kamera atau tab scanner lain, lalu coba lagi.';
+ if(n==='OverconstrainedError') return 'Mode kamera yang dipilih tidak tersedia. Coba pilih kamera lain.';
+ if(n==='SecurityError') return 'Browser memblokir akses kamera. Pastikan alamat menggunakan HTTPS.';
+ return 'Gagal membuka kamera'+(m?' — '+m:'')+'.';
+}
+
+async function stopPermissionStream(){
+ if(permissionStream){permissionStream.getTracks().forEach(t=>t.stop());permissionStream=null;}
+}
+
+async function getCameras(){
+ const devices=await Html5Qrcode.getCameras();
+ return devices||[];
+}
+
+function chooseRear(devices){
+ if(!devices.length)return null;
+ const rear=/back|rear|environment|belakang|world|trás|trasera|arrière/i;
+ return devices.find(d=>rear.test(d.label||''))||devices[devices.length-1];
+}
+
+async function preparePermission(){
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+   throw new Error('getUserMedia tidak tersedia. Gunakan Chrome/Edge melalui HTTPS.');
+ }
+ setStatus('Meminta izin kamera...');
+ permissionStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+ await stopPermissionStream();
+}
+
+async function startCamera(cameraId){
+ try{
+   startBtn.style.display='none';
+   setStatus('Menyalakan kamera...');
+   await stopPermissionStream();
+   if(scanner){try{await scanner.stop();}catch(e){} try{scanner.clear();}catch(e){}}
+   scanner=new Html5Qrcode('reader');
+   const cfg={fps:10,qrbox:function(viewfinderWidth,viewfinderHeight){const w=Math.min(viewfinderWidth*0.78,300);const h=Math.min(viewfinderHeight*0.45,180);return {width:Math.round(w),height:Math.round(h)};},aspectRatio:1.7777778,disableFlip:false};
+   if(formats)cfg.formatsToSupport=formats;
+   const source=cameraId || {facingMode:{ideal:'environment'}};
+   await scanner.start(source,cfg,onScan,function(){});
+   activeCameraId=cameraId||null;
+   setStatus('Kamera AKTIF. Arahkan QR/barcode ke kotak.','ok');
+ }catch(e){
+   console.error(e);
+   setStatus(errorText(e),'err');
+   startBtn.style.display='block';
+ }
+}
+
+async function init(){
+ try{
+   await preparePermission();
+   const cameras=await getCameras();
+   if(!cameras.length){throw new Error('Tidak ada kamera yang tersedia.');}
+   selectEl.innerHTML='';
+   cameras.forEach((cam,i)=>{const o=document.createElement('option');o.value=cam.id;o.textContent=cam.label||('Kamera '+(i+1));selectEl.appendChild(o);});
+   const rear=chooseRear(cameras);
+   selectEl.value=rear.id;
+   if(cameras.length>1)selectEl.style.display='block';
+   await startCamera(rear.id);
+ }catch(e){
+   console.error(e);
+   setStatus(errorText(e),'err');
+   startBtn.style.display='block';
+ }
+}
+
+async function onScan(decoded){
+ if(done)return;
+ const code=String(decoded||'').trim();
+ if(!code)return;
+ done=true;
+ setStatus('Kode terbaca: '+code,'ok');
+ try{if(scanner)await scanner.stop();}catch(e){}
+ if(window.opener&&!window.opener.closed){
+   window.opener.postMessage({type:'SILAK_ABSEN_SCAN',code:code,token:token},'*');
+   setTimeout(()=>window.close(),500);
+ }else{
+   const ret=params.get('return');
+   if(ret){const sep=ret.includes('?')?'&':'?';location.href=ret+sep+'scan='+encodeURIComponent(code);}
+ }
+}
+
+selectEl.addEventListener('change',()=>startCamera(selectEl.value));
+window.startCamera=()=>startCamera(selectEl.value||null);
+window.closeScanner=()=>{try{if(scanner)scanner.stop();}catch(e){};try{window.close();}catch(e){}};
+window.addEventListener('beforeunload',()=>{try{if(scanner)scanner.stop();}catch(e){};stopPermissionStream();});
+
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
 </body>
